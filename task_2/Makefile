@@ -1,5 +1,5 @@
 build:
-	mpic++ main_mpi.cpp -o mpi-run
+	mpic++ main_mpi.cpp -o run
 
 clean:
-	rm -f mpi-run
+	rm -f run

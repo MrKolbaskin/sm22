@@ -17,8 +17,7 @@ const double VOLUME_P = 4;
 const int ROOT = 0;
 
 const int ACTIVE_TAG = 1;
-const int RECV_POINTS_TAG = 2;
-const int SEND_POINTS_TAG = 3;
+const int POINTS_TAG = 2;
 
 double getRandomNumber(){
     return rand() / double(RAND_MAX); 
@@ -44,80 +43,81 @@ double calcFunction(const double &x, const double &y, const double &z){
 
 void masterLogic(const double precision, const int numprocs) {
     time_t startTime = time(nullptr);
-    srand(time(nullptr));
-    int n = 0;
-    double sumOfValues = 0, monteCarloValue = 0, tmpSum = 0;
+    srand(23);
+    int n = 0, isActive = 1;
+    double sumOfValues = 0, monteCarloValue = 0, tmpSum = 0, innerSum = 0;
     double points[3];
 
     while (abs(ANALITICAL_VALUE - monteCarloValue) > precision){
-        points[0] = getRandomX();
-        points[1] = getRandomY();
-        points[2] = getRandomZ();
-        
-        MPI_Reduce(&tmpSum, MPI_IN_PLACE, 1, MPI_DOUBLE, MPI_SUM, ROOT, MPI_COMM_WORLD);
+        MPI_Bcast(&isActive, 1, MPI_INT, ROOT, MPI_COMM_WORLD);
 
-        n += numprocs;
+        for (int i = 1; i < numprocs; i++){
+            points[0] = getRandomX();
+            points[1] = getRandomY();
+            points[2] = getRandomZ();
+
+            MPI_Send(points, 3, MPI_DOUBLE, i, POINTS_TAG, MPI_COMM_WORLD);
+        }
+
+        MPI_Reduce(&innerSum, &tmpSum, 1, MPI_DOUBLE, MPI_SUM, ROOT, MPI_COMM_WORLD);
+        n += numprocs - 1;
         sumOfValues += tmpSum;
 
-        monteCarloValue = VOLUME_P * (sumOfValues / double(numprocs));
+        monteCarloValue = VOLUME_P * (sumOfValues / double(n));
     }
+
+    isActive = 0;
+    MPI_Bcast(&isActive, 1, MPI_INT, ROOT, MPI_COMM_WORLD);
 
     cout << "Monte-Carlo Value: "<< monteCarloValue << endl;
     cout << "Diff Value: "<< abs(ANALITICAL_VALUE - monteCarloValue) << endl;
     cout << "Random points: "<< n << endl;
-    cout << "Time: " << time(nullptr) - startTime << endl;
 }
 
 void workerLogic() {
-    double points[3], value;
+    double points[3], value, outValue;
     int isActive = 1;
 
     while (isActive){
-        MPI_Recv(&isActive, 1, MPI_INT, 0, ACTIVE_TAG, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        MPI_Bcast(&isActive, 1, MPI_INT, ROOT, MPI_COMM_WORLD);
         
         if (isActive){
-            MPI_Recv(points, 3, MPI_DOUBLE, 0, RECV_POINTS_TAG, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            MPI_Recv(points, 3, MPI_DOUBLE, 0, POINTS_TAG, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
             value = calcFunction(points[0], points[1], points[2]);
 
-            MPI_Reduce(&value, nullptr, 1, MPI_DOUBLE, MPI_SUM, ROOT, MPI_COMM_WORLD);
-            // MPI_Send(value, 1, MPI_DOUBLE, 0, SEND_POINTS_TAG, MPI_COMM_WORLD);
+            MPI_Reduce(&value, &outValue, 1, MPI_DOUBLE, MPI_SUM, ROOT, MPI_COMM_WORLD);
         }
     }
 }
 
 
 int main(int argc, char *argv[]){
-    time_t startTime = time(nullptr);
-    
     if (argc < 2){
         cout << "You need specify precision" << endl;
         return 1;
     }
-
-    double precision = atof(argv[1]);
-    double reducedSum;
-
-    int numprocs, myid;
-    double tmpSum=0, sumOfValues=0;
     
     MPI_Init(&argc, &argv);
+    int numprocs, myid;
     MPI_Comm_size(MPI_COMM_WORLD, &numprocs);
     MPI_Comm_rank(MPI_COMM_WORLD, &myid);
 
-    while (1) {
-        
-        MPI_Reduce(0, &tmpSum, 1, MPI_DOUBLE, MPI_SUM, ROOT, MPI_COMM_WORLD);
-        if (myid){
-            monteCarloValue = VOLUME_P * (sumOfValues / double(numprocs));
+    double startTime = MPI_Wtime();
 
-            if (abs(ANALITICAL_VALUE - monteCarloValue) > precision){
-                break;
-            }
-        } else {
-            MPI_Recv(&isActive, 1, MPI_INT, 0, ACTIVE_TAG, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-        }
+    double precision = atof(argv[1]);
+    double tmpSum=0, sumOfValues=0, reducedSum;
+
+    if (!myid){
+        masterLogic(precision, numprocs);
+    } else {
+        workerLogic();
     }
 
+    double myTotalTime = MPI_Wtime() - startTime, totalTime;
+    MPI_Reduce(&myTotalTime, &totalTime, 1, MPI_DOUBLE, MPI_MAX, ROOT, MPI_COMM_WORLD);
+    if (!myid){
+        cout << "Time: " << totalTime << endl;
+    }
 
     MPI_Finalize();
     return 0;

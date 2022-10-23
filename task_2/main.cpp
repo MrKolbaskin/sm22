@@ -46,7 +46,7 @@ int main(int argc, char *argv[]){
 
     double precision = atof(argv[1]);
 
-    srand(time(nullptr));
+    srand(23);
     int n = 0;
     double sumOfValues = 0;
     double monteCarloValue = 0;
