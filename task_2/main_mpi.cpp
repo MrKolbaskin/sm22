@@ -42,7 +42,6 @@ double calcFunction(const double &x, const double &y, const double &z){
 }
 
 void masterLogic(const double precision, const int numprocs) {
-    time_t startTime = time(nullptr);
     srand(23);
     int n = 0, isActive = 1;
     double sumOfValues = 0, monteCarloValue = 0, tmpSum = 0, innerSum = 0;
