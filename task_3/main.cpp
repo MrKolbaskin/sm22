@@ -84,13 +84,13 @@ long double phi(Point p, Limits l) {
 }
 
 long double uAnalitical(Point p, Limits l, long double t) {
-  return phi(p, l) *
-         cos(M_PI *
-             sqrt((4.0 / l.x * l.x) + (16.0 / l.y * l.y) + (36.0 / l.z * l.z)) *
-             t);
+  return phi(p, l) * cos(M_PI *
+                         sqrt((4.0 / (l.x * l.x)) + (16.0 / (l.y * l.y)) +
+                              (36.0 / (l.z * l.z))) *
+                         t);
 }
 
-long double laplass(PointCoordinate p, Grid &grid, long n, long double h) {
+long double laplass(PointCoordinate p, Grid &grid, long double h) {
   long double firstFrac = (grid[p.x - 1][p.y][p.z] - 2 * grid[p.x][p.y][p.z] +
                            grid[p.x + 1][p.y][p.z]) /
                           (h * h);
@@ -101,7 +101,7 @@ long double laplass(PointCoordinate p, Grid &grid, long n, long double h) {
                            grid[p.x][p.y][p.z + 1]) /
                           (h * h);
 
-  return (firstFrac + secondFrac + thirdFrac);
+  return firstFrac + secondFrac + thirdFrac;
 }
 
 vector<Grid> getAnaliticalValues(const AxisPoints &axisPointsX,
@@ -128,9 +128,10 @@ vector<Grid> getAnaliticalValues(const AxisPoints &axisPointsX,
   return analiticalValues;
 }
 
-void calcInnerValue(vector<Grid> &g, PointCoordinate p, int t, int &n,
-                    long double &h, long double &theta) {
-  g[t + 1][p.x][p.y][p.z] = (theta * theta) * laplass(p, g[t], n, h) +
+void calcInnerValue(vector<Grid> &g, PointCoordinate p, int t, long double &h,
+                    long double &theta) {
+  // cout << "Laplass: " << laplass(p, g[t], h) << endl;
+  g[t + 1][p.x][p.y][p.z] = (theta * theta) * laplass(p, g[t], h) +
                             2 * g[t][p.x][p.y][p.z] - g[t - 1][p.x][p.y][p.z];
 }
 
@@ -161,9 +162,6 @@ long double calcDiff(Grid &calcValues, Grid &analiticalValues, int &n) {
           maxK = k;
           maxDiff = abs(calcValues[i][j][k] - analiticalValues[i][j][k]);
         }
-        // maxDiff =
-        //     max(abs(calcValues[i][j][k] - analiticalValues[i][j][k]),
-        //     maxDiff);
       }
     }
   }
@@ -207,7 +205,7 @@ Grid calcU1(Grid &u0, Grid &u1Analitical, Limits &l, int &n, long double &theta,
         } else {
           u1[i][j].push_back(u0[i][j][k] +
                              (theta * theta) / 2.0 *
-                                 laplass(PointCoordinate(i, j, k), u0, n, h));
+                                 laplass(PointCoordinate(i, j, k), u0, h));
         }
       }
     }
@@ -231,8 +229,8 @@ int main(int argc, char *argv[]) {
 
   vector<Grid> calcValues;
 
-  cout << "theta: " << axisPointsT.theta << endl;
-  cout << "h: " << axisPointsX.theta << endl;
+  // cout << "theta: " << axisPointsT.theta << endl;
+  // cout << "h: " << axisPointsX.theta << endl;
   for (long t = 0; t < T; t++) {
     if (t == 0) {
       calcValues.push_back(calcU0(axisPointsX, axisPointsY, axisPointsZ, l, n));
@@ -257,32 +255,26 @@ int main(int argc, char *argv[]) {
       for (int i = 1; i < n; ++i) {
         for (int j = 1; j < n; ++j) {
           for (int k = 1; k < n; ++k) {
-            calcInnerValue(calcValues, PointCoordinate(i, j, k), t - 1, n,
+            calcInnerValue(calcValues, PointCoordinate(i, j, k), t - 1,
                            axisPointsX.theta, axisPointsT.theta);
           }
         }
       }
 
-      // for (int i = 0; i < n + 1; ++i) {
-      //   for (int j = 0; j < n + 1; ++j) {
-      //     for (int k = 0; k < n + 1; ++k) {
-      //       calcBoundValue(calcValues, PointCoordinate(i, j, k), t - 1, n);
-      //     }
-      //   }
-      // }
+      for (int i = 0; i < n + 1; ++i) {
+        for (int j = 0; j < n + 1; ++j) {
+          for (int k = 0; k < n + 1; ++k) {
+            calcBoundValue(calcValues, PointCoordinate(i, j, k), t - 1, n);
+          }
+        }
+      }
     }
   }
-
-  // cout << "u1 " << analiticalValues[10][9][5][5] << endl;
-  // cout << "calc u1 " << calcValues[10][9][5][5] << endl;
 
   for (int t = 0; t < T; t++) {
     cout << "u" << t << endl;
     cout << "Indexes: ";
     calcDiff(calcValues[t], analiticalValues[t], n);
-    // cout << "u" << t << ": " << calcDiff(calcValues[t], analiticalValues[t],
-    // n)
-    //      << endl;
     cout << endl;
   }
 
