@@ -117,11 +117,13 @@ int main(int argc, char *argv[]) {
   double calcValues[T + 1][blockSize[0]][blockSize[1]][blockSize[2]],
       analiticalValues[T + 1][blockSize[0]][blockSize[1]][blockSize[2]];
 
+  size_t t, i, j, k;
   // analitical values
-  for (size_t t = 0; t < T + 1; ++t) {
-    for (size_t i = 0; i < blockSize[0]; ++i) {
-      for (size_t j = 0; j < blockSize[1]; ++j) {
-        for (size_t k = 0; k < blockSize[2]; ++k) {
+#pragma omp parallel for shared(analiticalValues) collapse(4);
+  for (t = 0; t < T + 1; ++t) {
+    for (i = 0; i < blockSize[0]; ++i) {
+      for (j = 0; j < blockSize[1]; ++j) {
+        for (k = 0; k < blockSize[2]; ++k) {
           long double x = (i + coords[0] * blockSize[0]) * h;
           long double y = (j + coords[1] * blockSize[1]) * h;
           long double z = (k + coords[2] * blockSize[2]) * h;
@@ -132,9 +134,10 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  for (int i = 0; i < blockSize[0]; ++i) {
-    for (int j = 0; j < blockSize[1]; ++j) {
-      for (int k = 0; k < blockSize[2]; ++k) {
+#pragma omp parallel for shared(analiticalValues) collapse(3);
+  for (i = 0; i < blockSize[0]; ++i) {
+    for (j = 0; j < blockSize[1]; ++j) {
+      for (k = 0; k < blockSize[2]; ++k) {
         long double x = (i + coords[0] * blockSize[0]) * h;
         long double y = (j + coords[1] * blockSize[1]) * h;
         long double z = (k + coords[2] * blockSize[2]) * h;
@@ -168,7 +171,7 @@ int main(int argc, char *argv[]) {
       inNext[3][maxBlockSize * maxBlockSize];
   int srcRank, destRank;
 
-  for (long t = 2; t < T + 1; ++t) {
+  for (t = 2; t < T + 1; ++t) {
     /* Edge exchanging */
     for (int d = 0; d < 3; ++d) {
       int blockSizeI, blockSizeJ;
@@ -238,9 +241,10 @@ int main(int argc, char *argv[]) {
       }
     }
 
-    for (int i = 0; i < blockSize[0]; ++i) {
-      for (int j = 0; j < blockSize[1]; ++j) {
-        for (int k = 0; k < blockSize[2]; ++k) {
+#pragma omp parallel for shared(inPrev, inNext, calcValues) collapse(3);
+    for (i = 0; i < blockSize[0]; ++i) {
+      for (j = 0; j < blockSize[1]; ++j) {
+        for (k = 0; k < blockSize[2]; ++k) {
           long double firstFrac = 0, secondFrac = 0, thirdFrac = 0;
 
           if (i == 0) {
@@ -305,13 +309,13 @@ int main(int argc, char *argv[]) {
   }
 
   long double maxDiff = 0;
-  for (int t = 0; t < T + 1; t++) {
+  for (t = 0; t < T + 1; t++) {
     long double tmpMaxDiff =
         abs(calcValues[t][0][0][0] - analiticalValues[t][0][0][0]);
     int maxI = 0, maxJ = 0, maxK = 0;
-    for (int i = 1; i < blockSize[0]; ++i) {
-      for (int j = 1; j < blockSize[1]; ++j) {
-        for (int k = 1; k < blockSize[2]; ++k) {
+    for (i = 1; i < blockSize[0]; ++i) {
+      for (j = 1; j < blockSize[1]; ++j) {
+        for (k = 1; k < blockSize[2]; ++k) {
           if (abs(calcValues[t][i][j][k] - analiticalValues[t][i][j][k]) >
               tmpMaxDiff) {
             maxI = i;
